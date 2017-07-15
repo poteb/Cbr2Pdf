@@ -20,12 +20,14 @@ namespace Cbr2Pdf
 {
     public partial class MainWindow : INotifyPropertyChanged
     {
-        private IEnumerable<string> files = new List<string>();
+        private string[] files = { };
         private string targetDirectory;
         private int filesDone;
         private int convertPercent;
         private readonly ConcurrentDictionary<string, string> failedFiles = new ConcurrentDictionary<string, string>();
+        private string log;
 
+        public string Log { get { return this.log; } set { this.log = value; OnPropertyChanged(); } }
         public int ConvertPercent { get { return this.convertPercent; } set { this.convertPercent = value; OnPropertyChanged(); } }
         public string TargetDirectory { get { return this.targetDirectory; } set { this.targetDirectory = value; OnPropertyChanged(); } }
 
@@ -51,18 +53,21 @@ namespace Cbr2Pdf
 
         private async void bConvert_Click(object sender, RoutedEventArgs e)
         {
-            SaveSettings();
-            this.filesDone = 0;
-            this.failedFiles.Clear();
-            UpdateProgress();
-            this.files = Directory.EnumerateFiles(TargetDirectory, "*.cbr", SearchOption.TopDirectoryOnly);
-            var tasks = new List<Task>();
-            foreach (var file in this.files)
+            try
             {
-                var t = ConvertFile(file);
-                tasks.Add(t);
+                this.bConvert.IsEnabled = false;
+                SaveSettings();
+                this.filesDone = 0;
+                this.failedFiles.Clear();
+                UpdateProgress();
+                this.files = Directory.EnumerateFiles(TargetDirectory).Where(x => x.EndsWith(".cbr", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".cbz", StringComparison.OrdinalIgnoreCase)).ToArray();
+                foreach (var file in this.files)
+                    await ConvertFile(file);
             }
-            await Task.WhenAll(tasks);
+            finally
+            {
+                this.bConvert.IsEnabled = true;
+            }
         }
 
         private async Task ConvertFile(string file)
@@ -75,8 +80,15 @@ namespace Cbr2Pdf
             if (result)
                 result = await CompressImages(file, tempDir);
             if (result)
-                await CreatePdf(file, tempDir);
-            Directory.Delete(tempDir, true);
+                result = await CreatePdf(file, tempDir);
+            try
+            {
+                Thread.Sleep(1000);
+                Directory.Delete(tempDir, true);
+            }
+            catch { }
+            if (result)
+                Output($"Success: {file}");
             Interlocked.Increment(ref this.filesDone);
             UpdateProgress();
         }
@@ -87,27 +99,41 @@ namespace Cbr2Pdf
             {
                 try
                 {
-                    var pdf = new PdfDocument();
-                    foreach (var img in Directory.EnumerateFiles(tempDir).Where(x => x.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))
+                    var pdfFile = Path.Combine(TargetDirectory, Path.GetFileNameWithoutExtension(file) + ".pdf");
+                    var chunks = Directory.EnumerateFiles(tempDir).Where(x => x.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)).Split(5);
+                    using (var fileStream = new FileStream(pdfFile, FileMode.OpenOrCreate))
                     {
-                        var image = XImage.FromFile(img);
-                        var page = pdf.AddPage();
-                        page.Width = image.PixelWidth * 72 / image.HorizontalResolution;
-                        page.Height = image.PixelHeight * 72 / image.HorizontalResolution;
-                        var gfx = XGraphics.FromPdfPage(page);
-                        gfx.DrawImage(image, 0, 0);
+                        using (var pdf = new PdfDocument(fileStream))
+                        {
+                            foreach (var chunk in chunks)
+                            {
+                                foreach (var img in chunk)
+                                {
+                                    var image = XImage.FromFile(img);
+                                    var page = pdf.AddPage();
+                                    page.Width = image.PixelWidth * 72 / image.HorizontalResolution;
+                                    page.Height = image.PixelHeight * 72 / image.HorizontalResolution;
+                                    var gfx = XGraphics.FromPdfPage(page);
+                                    gfx.DrawImage(image, 0, 0);
+                                    pdf.Save(fileStream);
+                                }
+                            }
+                        }
                     }
-                    pdf.Save(Path.Combine(TargetDirectory, Path.GetFileNameWithoutExtension(file) + ".pdf"));
                     return true;
                 }
                 catch (Exception ex)
                 {
+                    Output($"Failed: {file} - {ex.Message}");
                     this.failedFiles.TryAdd(file, ex.Message);
                     return false;
                 }
             });
         }
-
+        private void Output(string text)
+        {
+            Log = $"{text}{Environment.NewLine}{this.log}";
+        }
 
         private async Task<bool> CompressImages(string file, string tempDir)
         {
@@ -115,7 +141,7 @@ namespace Cbr2Pdf
             {
                 try
                 {
-                    foreach (var img in Directory.GetFiles(tempDir))
+                    foreach (var img in Directory.EnumerateFiles(tempDir).Where(x => x.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))
                     {
                         var bytes = File.ReadAllBytes(img);
                         using (var inStream = new MemoryStream(bytes))
@@ -138,6 +164,7 @@ namespace Cbr2Pdf
                 }
                 catch (Exception ex)
                 {
+                    Output($"Failed: {file} - {ex.Message}");
                     this.failedFiles.TryAdd(file, ex.Message);
                     return false;
                 }
@@ -161,6 +188,7 @@ namespace Cbr2Pdf
                 }
                 catch (Exception ex)
                 {
+                    Output($"Failed: {file} - {ex.Message}");
                     this.failedFiles.TryAdd(file, ex.Message);
                     return false;
                 }
