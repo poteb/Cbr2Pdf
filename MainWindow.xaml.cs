@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -27,9 +26,9 @@ namespace Cbr2Pdf
         private readonly ConcurrentDictionary<string, string> failedFiles = new ConcurrentDictionary<string, string>();
         private string log;
 
-        public string Log { get { return this.log; } set { this.log = value; OnPropertyChanged(); } }
-        public int ConvertPercent { get { return this.convertPercent; } set { this.convertPercent = value; OnPropertyChanged(); } }
-        public string TargetDirectory { get { return this.targetDirectory; } set { this.targetDirectory = value; OnPropertyChanged(); } }
+        public string Log { get => this.log; set { this.log = value; OnPropertyChanged(); } }
+        public int ConvertPercent { get => this.convertPercent; set { this.convertPercent = value; OnPropertyChanged(); } }
+        public string TargetDirectory { get => this.targetDirectory; set { this.targetDirectory = value; OnPropertyChanged(); } }
 
         public MainWindow()
         {
@@ -78,6 +77,8 @@ namespace Cbr2Pdf
             Directory.CreateDirectory(tempDir);
             var result = await ExtractFile(file, tempDir);
             if (result)
+                result = await PageSelection(file, tempDir, this.cbPages.SelectedIndex);
+            if (result)
                 result = await CompressImages(file, tempDir);
             if (result)
                 result = await CreatePdf(file, tempDir);
@@ -86,11 +87,32 @@ namespace Cbr2Pdf
                 Thread.Sleep(1000);
                 Directory.Delete(tempDir, true);
             }
-            catch { }
+            catch { /* ignore */ }
             if (result)
                 Output($"Success: {file}");
             Interlocked.Increment(ref this.filesDone);
             UpdateProgress();
+        }
+
+        private async Task<bool> PageSelection(string file, string tempDir, int pageSelectionIndex)
+        {
+            return await Task.Run(() =>
+            {
+                if (pageSelectionIndex == 0) return true;
+                if (pageSelectionIndex == 1)
+                {
+                    try
+                    {
+                        var lastFile = Directory.GetFiles(tempDir).LastOrDefault();
+                        File.Delete(lastFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        Output($"Failed PageSelection: {file} - {ex.Message}");
+                    }
+                }
+                return true;
+            });
         }
 
         private async Task<bool> CreatePdf(string file, string tempDir)

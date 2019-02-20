@@ -1,18 +1,27 @@
-﻿<Window x:Class="Cbr2Pdf.MainWindow"
+﻿<Window
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Cbr2Pdf"
+        xmlns:System="clr-namespace:System;assembly=mscorlib" x:Class="Cbr2Pdf.MainWindow"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=local:MainWindow, IsDesignTimeCreatable=True}"
+        d:DataContext="{d:DesignInstance IsDesignTimeCreatable=True, Type={x:Type local:MainWindow}}"
         Title="MainWindow" Height="536.157" Width="794.635">
     <Grid>
         <TextBlock HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="Directory:" VerticalAlignment="Top"/>
         <TextBox Margin="66,10,65,0" TextWrapping="Wrap" Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Top" Height="18"/>
         <Button Content="Open..." x:Name="bOpen" HorizontalAlignment="Right" Margin="0,10,9,0" VerticalAlignment="Top" Width="50" Click="bOpen_Click"/>
+
+        <TextBlock HorizontalAlignment="Left" Margin="10,39,0,0" TextWrapping="Wrap" Text="Pages:" VerticalAlignment="Top"/>
+        <ComboBox HorizontalAlignment="Left" Margin="66,37,0,0" VerticalAlignment="Top" Width="137" SelectedIndex="0" x:Name="cbPages">
+            <System:String>All</System:String>
+            <System:String>Skip last</System:String>
+        </ComboBox>
+
         <Button Content="Convert" x:Name="bConvert" HorizontalAlignment="Left" Margin="10,69,0,0" VerticalAlignment="Top" Width="75" Click="bConvert_Click"/>
         <ProgressBar HorizontalAlignment="Left" Value="{Binding ConvertPercent, UpdateSourceTrigger=PropertyChanged}" Height="18" Margin="99,69,0,0" VerticalAlignment="Top" Width="242" Maximum="100" Minimum="0" />
+
         <TextBox Margin="10,104,10,10" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto" Text="{Binding Log}"/>
     </Grid>
 </Window>
