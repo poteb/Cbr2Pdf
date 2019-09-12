@@ -12,6 +12,7 @@ using Cbr2Pdf.Properties;
 using ImageProcessor;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using SharpCompress.Common;
 using SharpCompress.Readers;
 // ReSharper disable AssignNullToNotNullAttribute
 
